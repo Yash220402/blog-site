@@ -1,6 +1,9 @@
 from django.shortcuts import render,get_object_or_404
-from .models import Post
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.views.generic import ListView
+
+from .models import Post, Comment
+from .forms import EmailPostForm, CommentForm
 
 # Create your views here.
 # def post_list(request):
@@ -13,8 +16,29 @@ def post_detail(request, year, month, day, post):
                                    publish__year=year,
                                    publish__month=month,
                                    publish__day=day)
+
+    # List of active comments for this post
+    comments = post.comments.filter(active=True)
+    new_comment = None
+
+    if request.method == 'POST':
+        # A comment was posted
+        comment_form = CommentForm(data=request.POST)
+        if comment_form.is_valid():
+            # create comment object but don't save to db yet
+            new_comment = comment_form.save(commit=False)
+            # assign the current post to the comment
+            new_comment.post = post
+            # save the comment to the db 
+            new_comment.save()
+    else:
+        comment_form = CommentForm()
     
-    return render(request, 'blog/post/detail.html', {'post': post})
+    return render(request, 'blog/post/detail.html', 
+                            {'post': post,
+                             'comments': comments,
+                             'new_comment': new_comment,
+                             'comment_form': comment_form})
 
 # def post_list(request):
 #     object_list = Post.published.all()
@@ -34,7 +58,6 @@ def post_detail(request, year, month, day, post):
 #                   {'page': page,
 #                   'posts': posts})
 
-from django.views.generic import ListView
 
 class PostListView(ListView):
     queryset = Post.published.all()
@@ -43,9 +66,7 @@ class PostListView(ListView):
     template_name = 'blog/post/list.html'
 
 
-from .forms import EmailPostForm
 from django.core.mail import send_mail
-
 def post_share(request, post_id):
     # Retrieve post by id
     post = get_object_or_404(Post, id=post_id, status='published')
